@@ -1,86 +1,98 @@
-'''
-袋の中に-1、0、1と書かれた3種類のボールが一定の割合で複数個入っているとする。
-袋から1つのボールを取り出した時、1が出ることにベットする、という状況を想定している。
-書かれた数字はそのまま倍率になっている。-1を引くとベット分没収されるし、1を引くとベット分得られる。0は変動なし。
-0を入れる意味はあまり無い気もするけどとりあえず入れた。
-'''
+"""
+ベッティングシステムを調査するための簡易シミュレータ
+任意の勝率、敗北率、引き分け率を設定しゲームを繰り返すことでベッティングシステムの優劣について検証する。
+"""
 
 
 import random
+import numpy as np
+import matplotlib.pyplot as plt
 
-global ballList
-ballList = []
 
 def main():
+    # 勝ち、負け、引き分けの数をそれぞれ指定する
+    winper = 44
+    loseper = 48
+    drawper = 8
 
-    #勝ち、負け、引き分けの数をそれぞれ指定する
-    wper = 44
-    lper = 48
-    dper = 8
+    totalwin = 0
+    totallose = 0
+    totaldraw = 0
 
-    #初期で持っている金額
-    nowMoney = 10000
-    #基礎となるベット数を指定
+    # 初期で持っている金額
+    money = 10000
+    # 基礎となるベット数(1ユニットの額)を指定
     basebet =100
 
-    makelist(wper,lper,dper) #最初はリスト生成
-    resetnum = len(ballList) / 2 #リスト再生成の目安。今回はボールの数が半分の時。
-    for i in range(100): #今回は100回のゲーム
-        print("battle : "+str(i))
-        bet = betting(basebet)
-        print("bet : "+str(bet))
-        print("win : lose = " + str(ballList.count(1)) + ":" + str(ballList.count(-1)))
-        nowMoney +=result(battle())*bet #勝った時1倍、負けた時-1倍、引き分けで0倍のベット。
+    # ゲームを行う回数を指定
+    game_num = 5000
 
-        if len(ballList) == resetnum: #リストの長さが規定回数以下になった時にリストを生成しなおす
-            makelist(wper,lper,dper)
+    # グラフへの出力
+    left = np.zeros(game_num)
+    height = np.zeros(game_num)
 
-        print("now money : "+str(nowMoney))
-        print("")
+    for i in range(game_num):
+        left[i] = i
+        height[i] = money
+        betmoney = betting(basebet)
+        money -= betmoney
+        game_result = random_response(winper, loseper, drawper)
+
+        if game_result==1:
+            totalwin += 1
+        elif game_result==-1:
+            totallose += 1
+        else:
+            totaldraw += 1
+
+        money += money_manager(game_result, betmoney)
+        if money <= 0:
+            break
+
+    print("win : " + str(totalwin) + "\nlose : " + str(totallose) + "\ndraw : "
+          + str(totaldraw) + "\nmoney : " + str(money))
+    plt.plot(left, height)
+    plt.show()
 
 
-#勝敗を-1、0、1で出力し、リストからその要素を消去する関数
-def battle():
-    num = random.choice(ballList)
-    """
-    これはボールを減少させる用。今は未使用
-    ballList.remove(num)
-    """
-    return num
+# ベットする金額を決める関数
 
-#勝敗をprintで表示するだけ。いずれ何かに使うかもと思いとりあえず作った。
-def result(battle):
-    print(battle)
-    if battle == -1:
-        print("負け")
-    elif battle == 1:
-        print("勝ち")
-    else:
-        print("引き分け")
-    return battle
-
-#ベットする金額を決める関数。
 def betting(basebet):
-    #basebet=100 #基礎ベットを決める
+    return basebet
 
-    #割合に応じてどのくらい賭けるか決める。今は（当たりの数-外れの数）/ボール全体*基礎ベット
-    '''
-    恐らく考えるべきはこのcountをどのくらい上下させるかである。
-    今は仮に「（当たりの数-外れの数）/ボール全体*基礎ベット」を入れているが適当である。
-    '''
-    count = int((ballList.count(1) - ballList.count(-1)) / len(ballList) * basebet)
-    return basebet + count
 
-#ボールリストを作成する関数
-def makelist(w,l,d):
-    ballList.clear() #初期化
-    for i in range(w):
-        ballList.extend([1])
-    for i in range(l):
-        ballList.extend([-1])
-    for i in range(d):
-        ballList.extend([0])
-    #ballList.sort()
+# ランダムな結果を返す出漁
+# 引数：winper = その時の勝率, loseper = その時の敗北率, drawper = その時の引き分け率
+# 返り値: 1 = 勝ち, -1 = 負け, 0 = 引き分け
+
+def random_response(winper, loseper, drawper):
+    # すべての確率の合計
+    prob_sum = winper + loseper + drawper
+    # ランダムな数字を生成
+    random_num = random.random()
+
+    # 勝ちと負けの境界を定義
+    win_border = winper / prob_sum
+    lose_border = (winper + loseper) / prob_sum
+
+    if random_num < win_border:
+        return 1
+    elif win_border < random_num < lose_border:
+        return -1
+    else:
+        return 0
+
+
+# 引数:gameresult = 勝敗, betmoney = 賭け金
+# 返り値:勝敗に応じた利得
+
+def money_manager(game_result, betmoney):
+    if 1 == game_result:
+        return betmoney * 2
+    elif -1 == game_result:
+        return 0
+    else:
+        return betmoney
 
 if __name__ == "__main__":
     main()
